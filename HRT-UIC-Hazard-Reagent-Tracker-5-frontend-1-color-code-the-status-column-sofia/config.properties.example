@@ -1,0 +1,8 @@
+# ---- MySQL ----
+db.url=jdbc:mysql://localhost:3306/hazard_tracker
+db.user=root
+db.password=
+
+# ---- Gmail SMTP (use a Gmail APP PASSWORD, not your normal password) ----
+gmail.address=
+gmail.app.password=

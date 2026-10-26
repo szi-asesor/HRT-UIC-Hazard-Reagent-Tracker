@@ -53,7 +53,7 @@ Teacher logs in with email → New Request (class, experiment, add several chemi
 → **Reject**: reason required, status REJECTED, email sent. If the email fails, the admin sees an error.
 
 ## Setup
-1. Install JDK 17+, Maven, MySQL.
+1. Install JDK 25 (the project's Java target), Maven, and MySQL.
 2. Run `database/schema.sql` in MySQL (creates DB `hazard_tracker` + sample data).
    Edit the teacher's email in the INSERT (or later in the `users` table) to an address you can read.
 3. Edit `config.properties`: MySQL user/password, and your Gmail address + **Gmail App Password**

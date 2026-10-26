@@ -28,6 +28,7 @@ public class RequestService {
     public void createRequest(Teacher teacher, String className, String experiment,
                               List<RequestItem> items) throws SQLException {
         checkFields(teacher, className, experiment, items);
+        validateChemicals(items);
         ChemicalRequest request = new ChemicalRequest();
         request.setTeacherId(teacher.getId());
         request.setClassName(className.trim());
@@ -42,6 +43,7 @@ public class RequestService {
     public void updateRequest(Teacher teacher, int requestId, String className, String experiment,
                               List<RequestItem> items) throws SQLException {
         checkFields(teacher, className, experiment, items);
+        validateChemicals(items);
         ChemicalRequest request = loadOwnPending(teacher, requestId, "edited");
         request.setClassName(className.trim());
         request.setExperiment(experiment.trim());
@@ -50,6 +52,19 @@ public class RequestService {
             request.addItem(item);
         }
         requestDAO.update(request);
+    }
+
+    private void validateChemicals(List<RequestItem> items) throws SQLException {
+        for (RequestItem item : items) {
+            Chemical chemical = chemicalDAO.findActiveById(item.getChemicalId());
+            if (chemical == null) {
+                throw new IllegalArgumentException(
+                        "Chemical " + item.getChemicalId() + " is unavailable or inactive.");
+            }
+            if (chemical.isExpired()) {
+                throw new IllegalArgumentException(chemical.getName() + " is expired and cannot be requested.");
+            }
+        }
     }
 
     /** A teacher may cancel only their OWN request, and only while it is PENDING. */
@@ -151,10 +166,23 @@ public class RequestService {
             try {
                 for (RequestItem item : request.getItems()) {
                     if (releasing || returning) {
-                        Chemical c = chemicalDAO.findById(con, item.getChemicalId());
                         if (releasing) {
+                            Chemical c = chemicalDAO.findActiveById(con, item.getChemicalId());
+                            if (c == null) {
+                                throw new IllegalArgumentException(
+                                        "Chemical " + item.getChemicalId() + " is unavailable or inactive.");
+                            }
+                            if (c.isExpired()) {
+                                throw new IllegalArgumentException(
+                                        c.getName() + " is expired and cannot be released.");
+                            }
                             inventoryService.release(con, c, item.getQuantity(), adminId);
                         } else {
+                            Chemical c = chemicalDAO.findById(con, item.getChemicalId());
+                            if (c == null) {
+                                throw new IllegalArgumentException(
+                                        "Chemical " + item.getChemicalId() + " could not be found for stock return.");
+                            }
                             inventoryService.returnStock(con, c, item.getQuantity(), adminId);
                         }
                     }

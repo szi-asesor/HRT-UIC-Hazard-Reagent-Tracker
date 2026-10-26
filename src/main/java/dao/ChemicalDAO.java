@@ -37,7 +37,7 @@ public class ChemicalDAO {
 
     /** Version that uses an existing connection (needed inside a database transaction). */
     public Chemical findById(Connection con, int id) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement("SELECT * FROM chemicals WHERE id = ?")) {
+        try (PreparedStatement ps = con.prepareStatement("SELECT * FROM chemicals WHERE id = ? FOR UPDATE")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {

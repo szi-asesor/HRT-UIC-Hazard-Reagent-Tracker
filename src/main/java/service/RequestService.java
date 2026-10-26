@@ -187,7 +187,7 @@ public class RequestService {
                         }
                     }
                 }
-                requestDAO.updateStatus(con, requestId, newStatus, savedReason);
+                requestDAO.updateStatus(con, requestId, newStatus, savedReason, oldStatus);
                 con.commit();
             } catch (SQLException | RuntimeException e) {
                 con.rollback();   // nothing changes if any chemical is short

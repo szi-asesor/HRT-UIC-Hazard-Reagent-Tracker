@@ -110,19 +110,23 @@ public class RequestDAO {
         return list.isEmpty() ? null : list.get(0);
     }
 
-    public void updateStatus(int id, String status, String reason) throws SQLException {
+    public void updateStatus(int id, String status, String reason, String expectedStatus) throws SQLException {
         try (Connection con = DatabaseConnection.getConnection()) {
-            updateStatus(con, id, status, reason);
+            updateStatus(con, id, status, reason, expectedStatus);
         }
     }
 
-    public void updateStatus(Connection con, int id, String status, String reason) throws SQLException {
-        String sql = "UPDATE chemical_requests SET status = ?, rejection_reason = ? WHERE id = ?";
+    public void updateStatus(Connection con, int id, String status, String reason, String expectedStatus)
+            throws SQLException {
+        String sql = "UPDATE chemical_requests SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, status);
             ps.setString(2, reason);
             ps.setInt(3, id);
-            ps.executeUpdate();
+            ps.setString(4, expectedStatus);
+            if (ps.executeUpdate() == 0) {
+                throw new IllegalStateException("The request status changed before this update could be applied.");
+            }
         }
     }
 

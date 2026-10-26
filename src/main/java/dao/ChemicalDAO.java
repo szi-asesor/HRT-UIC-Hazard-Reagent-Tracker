@@ -48,6 +48,26 @@ public class ChemicalDAO {
         return null;
     }
 
+    /** Finds an active chemical and locks it for the duration of the current transaction. */
+    public Chemical findActiveById(Connection con, int id) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT * FROM chemicals WHERE id = ? AND active = TRUE FOR UPDATE")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
+    }
+
+    public Chemical findActiveById(int id) throws SQLException {
+        try (Connection con = DatabaseConnection.getConnection()) {
+            return findActiveById(con, id);
+        }
+    }
+
     public void insert(Chemical c) throws SQLException {
         String sql = "INSERT INTO chemicals (name, quantity, unit, hazard_type, storage_group, "
                 + "storage_temperature, location, minimum_stock, expiration_date) VALUES (?,?,?,?,?,?,?,?,?)";

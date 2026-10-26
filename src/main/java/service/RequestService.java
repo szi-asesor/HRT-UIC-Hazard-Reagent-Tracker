@@ -28,6 +28,7 @@ public class RequestService {
     public void createRequest(Teacher teacher, String className, String experiment,
                               List<RequestItem> items) throws SQLException {
         checkFields(teacher, className, experiment, items);
+        checkItemsRequestable(items);
         ChemicalRequest request = new ChemicalRequest();
         request.setTeacherId(teacher.getId());
         request.setClassName(className.trim());
@@ -42,6 +43,7 @@ public class RequestService {
     public void updateRequest(Teacher teacher, int requestId, String className, String experiment,
                               List<RequestItem> items) throws SQLException {
         checkFields(teacher, className, experiment, items);
+        checkItemsRequestable(items);
         ChemicalRequest request = loadOwnPending(teacher, requestId, "edited");
         request.setClassName(className.trim());
         request.setExperiment(experiment.trim());
@@ -50,6 +52,26 @@ public class RequestService {
             request.addItem(item);
         }
         requestDAO.update(request);
+    }
+
+    /** Every chemical in a new or edited request must still exist, be active and not be expired. */
+    private void checkItemsRequestable(List<RequestItem> items) throws SQLException {
+        for (RequestItem item : items) {
+            checkRequestable(chemicalDAO.findById(item.getChemicalId()));
+        }
+    }
+
+    /** Rejects a chemical that is missing, removed (inactive) or expired. */
+    private void checkRequestable(Chemical c) {
+        if (c == null) {
+            throw new IllegalArgumentException("Chemical not found.");
+        }
+        if (!c.isActive()) {
+            throw new IllegalArgumentException(c.getName() + " has been removed and cannot be requested or approved.");
+        }
+        if (c.isExpired()) {
+            throw new IllegalArgumentException(c.getName() + " is expired and cannot be requested or approved.");
+        }
     }
 
     /** A teacher may cancel only their OWN request, and only while it is PENDING. */
@@ -153,6 +175,7 @@ public class RequestService {
                     if (releasing || returning) {
                         Chemical c = chemicalDAO.findById(con, item.getChemicalId());
                         if (releasing) {
+                            checkRequestable(c);   // returning stock is not checked, so it still works for removed chemicals
                             inventoryService.release(con, c, item.getQuantity(), adminId);
                         } else {
                             inventoryService.returnStock(con, c, item.getQuantity(), adminId);

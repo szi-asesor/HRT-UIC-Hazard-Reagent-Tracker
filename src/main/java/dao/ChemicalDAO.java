@@ -64,12 +64,23 @@ public class ChemicalDAO {
     }
 
     public void update(Chemical c) throws SQLException {
-        String sql = "UPDATE chemicals SET name=?, quantity=?, unit=?, hazard_type=?, storage_group=?, "
+        String sql = "UPDATE chemicals SET name=?, unit=?, hazard_type=?, storage_group=?, "
                 + "storage_temperature=?, location=?, minimum_stock=?, expiration_date=? WHERE id=?";
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            setFields(ps, c);
-            ps.setInt(10, c.getId());
+            ps.setString(1, c.getName());
+            ps.setString(2, c.getUnit());
+            ps.setString(3, c.getHazardType());
+            ps.setString(4, c.getStorageGroup());
+            ps.setString(5, c.getStorageTemperature());
+            ps.setString(6, c.getLocation());
+            ps.setDouble(7, c.getMinimumStock());
+            if (c.getExpirationDate() == null) {
+                ps.setNull(8, java.sql.Types.DATE);
+            } else {
+                ps.setDate(8, Date.valueOf(c.getExpirationDate()));
+            }
+            ps.setInt(9, c.getId());
             ps.executeUpdate();
         }
     }
@@ -136,6 +147,7 @@ public class ChemicalDAO {
         c.setStorageTemperature(rs.getString("storage_temperature"));
         c.setLocation(rs.getString("location"));
         c.setMinimumStock(rs.getDouble("minimum_stock"));
+        c.setActive(rs.getBoolean("active"));
         Date d = rs.getDate("expiration_date");
         if (d != null) {
             c.setExpirationDate(d.toLocalDate());

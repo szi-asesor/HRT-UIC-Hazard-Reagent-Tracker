@@ -20,6 +20,7 @@ public class Chemical {
     private String location;            // e.g. "Cabinet A"
     private double minimumStock;
     private LocalDate expirationDate;   // may be null
+    private boolean active = true;      // false = removed (hidden) from the chemical list
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
@@ -48,6 +49,8 @@ public class Chemical {
     public void setMinimumStock(double minimumStock) { this.minimumStock = minimumStock; }
     public LocalDate getExpirationDate() { return expirationDate; }
     public void setExpirationDate(LocalDate expirationDate) { this.expirationDate = expirationDate; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
     // ----- controlled behaviour -----
 

@@ -51,7 +51,7 @@ public class AuthenticationService {
         try {
             userDAO.addTeacher(normalizedName, hash(password), normalizedEmail);
         } catch (SQLException ex) {
-            if ("23000".equals(ex.getSQLState())) {
+            if (ex.getErrorCode() == 1062) {
                 throw new IllegalArgumentException("An account with this email already exists.", ex);
             }
             throw ex;

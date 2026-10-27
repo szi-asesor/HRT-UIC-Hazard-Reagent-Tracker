@@ -1,5 +1,6 @@
 package gui;
 
+
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -7,10 +8,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import model.ChemicalRequest;
 import model.Teacher;
 import service.RequestService;
+
 
 /** Teacher screen: request history. PENDING requests can be edited or cancelled. */
 public class MyRequestsFrame extends JFrame {
@@ -29,14 +32,62 @@ public class MyRequestsFrame extends JFrame {
     private final JButton cancelBtn = new JButton("Cancel Request");
     private List<ChemicalRequest> requests = new ArrayList<>();
 
+
     public MyRequestsFrame(Teacher teacher) {
         this.teacher = teacher;
         setTitle("My Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+
         details.setEditable(false);
         editBtn.setEnabled(false);
         cancelBtn.setEnabled(false);
+
+
+        table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, 
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (value != null) {
+                    String status = value.toString().toUpperCase();
+                    switch (status) {
+                        case "APPROVED":
+                        case "AVAILABLE":
+                        case "ACTIVE":
+                            c.setBackground(new Color(200, 240, 200));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "PENDING":
+                        case "LOW STOCK":
+                            c.setBackground(new Color(255, 243, 205));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "REJECTED":
+                        case "OUT OF STOCK":
+                        case "HAZARDOUS":
+                        case "CANCELLED":
+                            c.setBackground(new Color(255, 204, 204));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        default:
+                            c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                            c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
+                            break;
+                    }
+                }
+                
+                if (isSelected) {
+                    c.setBackground(table.getSelectionBackground());
+                    c.setForeground(table.getSelectionForeground());
+                }
+
+
+                return c;
+            }
+        });
+
 
         table.getSelectionModel().addListSelectionListener(e -> {
             int row = table.getSelectedRow();
@@ -50,12 +101,14 @@ public class MyRequestsFrame extends JFrame {
         editBtn.addActionListener(e -> edit());
         cancelBtn.addActionListener(e -> cancel());
 
+
         JButton refreshBtn = new JButton("Refresh");
         refreshBtn.addActionListener(e -> load());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.add(refreshBtn);
         top.add(editBtn);
         top.add(cancelBtn);
+
 
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -67,6 +120,7 @@ public class MyRequestsFrame extends JFrame {
         setLocationRelativeTo(null);
         load();
     }
+
 
     private void load() {
         try {
@@ -87,10 +141,12 @@ public class MyRequestsFrame extends JFrame {
         }
     }
 
+
     private ChemicalRequest selected() {
         int row = table.getSelectedRow();
         return row < 0 ? null : requests.get(row);
     }
+
 
     private void edit() {
         ChemicalRequest r = selected();
@@ -104,6 +160,7 @@ public class MyRequestsFrame extends JFrame {
         });
         frame.setVisible(true);
     }
+
 
     private void cancel() {
         ChemicalRequest r = selected();

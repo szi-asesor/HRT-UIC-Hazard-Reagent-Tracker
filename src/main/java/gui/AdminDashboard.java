@@ -71,8 +71,12 @@ public class AdminDashboard extends JFrame {
         requestsBtn.addActionListener(e -> new RequestManagementFrame(admin).setVisible(true));
         inventoryBtn.addActionListener(e -> new InventoryFrame(admin).setVisible(true));
         logoutBtn.addActionListener(e -> {
-            dispose();
-            new LoginFrame().setVisible(true);
+            for (Window window : Window.getWindows()) {
+                if (window != null && window.isDisplayable()) {
+                    window.dispose();
+                }
+            }
+            SwingUtilities.invokeLater(() -> new LoginFrame().setVisible(true));
         });
 
         JPanel root = new JPanel(new BorderLayout(10, 10));

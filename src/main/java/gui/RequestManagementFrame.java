@@ -1,14 +1,17 @@
 package gui;
 
+
 import java.awt.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import model.Admin;
 import model.ChemicalRequest;
 import service.RequestService;
+
 
 /** Admin screen: review requests, approve / reject, or change a request to any status. */
 public class RequestManagementFrame extends JFrame {
@@ -28,13 +31,62 @@ public class RequestManagementFrame extends JFrame {
     private final JButton statusBtn = new JButton("Change Status...");
     private List<ChemicalRequest> requests = new ArrayList<>();
 
+
     public RequestManagementFrame(Admin admin) {
         this.admin = admin;
         setTitle("Manage Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+
         details.setEditable(false);
         setButtons(null);
+
+
+        table.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, 
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                
+                if (value != null) {
+                    String status = value.toString().toUpperCase();
+                    switch (status) {
+                        case "APPROVED":
+                        case "AVAILABLE":
+                        case "ACTIVE":
+                            c.setBackground(new Color(200, 240, 200));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "PENDING":
+                        case "LOW STOCK":
+                            c.setBackground(new Color(255, 243, 205));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "REJECTED":
+                        case "OUT OF STOCK":
+                        case "HAZARDOUS":
+                        case "CANCELLED":
+                            c.setBackground(new Color(255, 204, 204));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        default:
+                            c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                            c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
+                            break;
+                    }
+                }
+                
+                if (isSelected) {
+                    c.setBackground(table.getSelectionBackground());
+                    c.setForeground(table.getSelectionForeground());
+                }
+
+
+                return c;
+            }
+        });
+
 
         table.getSelectionModel().addListSelectionListener(e -> {
             int row = table.getSelectedRow();
@@ -48,14 +100,17 @@ public class RequestManagementFrame extends JFrame {
         rejectBtn.addActionListener(e -> apply(ChemicalRequest.REJECTED));
         statusBtn.addActionListener(e -> chooseStatus());
 
+
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttons.add(approveBtn);
         buttons.add(rejectBtn);
         buttons.add(statusBtn);
 
+
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(new JScrollPane(details), BorderLayout.CENTER);
         bottom.add(buttons, BorderLayout.SOUTH);
+
 
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -67,12 +122,14 @@ public class RequestManagementFrame extends JFrame {
         load();
     }
 
+
     /** Approve / Reject are only useful when the request is not already in that status. */
     private void setButtons(ChemicalRequest r) {
         approveBtn.setEnabled(r != null && !r.getStatus().equals(ChemicalRequest.APPROVED));
         rejectBtn.setEnabled(r != null && !r.getStatus().equals(ChemicalRequest.REJECTED));
         statusBtn.setEnabled(r != null);
     }
+
 
     private void load() {
         try {
@@ -91,10 +148,12 @@ public class RequestManagementFrame extends JFrame {
         }
     }
 
+
     private ChemicalRequest selected() {
         int row = table.getSelectedRow();
         return row < 0 ? null : requests.get(row);
     }
+
 
     private void chooseStatus() {
         ChemicalRequest r = selected();
@@ -108,10 +167,12 @@ public class RequestManagementFrame extends JFrame {
         }
     }
 
+
     /** One method handles every status change, so the rules stay in RequestService. */
     private void apply(String newStatus) {
         ChemicalRequest r = selected();
         if (r == null) return;
+
 
         String old = r.getStatus();
         String note = "";
@@ -130,11 +191,13 @@ public class RequestManagementFrame extends JFrame {
                 "Confirm", JOptionPane.YES_NO_OPTION);
         if (answer != JOptionPane.YES_OPTION) return;
 
+
         String reason = null;
         if (newStatus.equals(ChemicalRequest.REJECTED)) {
             reason = JOptionPane.showInputDialog(this, "Reason for rejection:");
             if (reason == null) return;   // admin pressed Cancel
         }
+
 
         try {
             String emailProblem = service.changeStatus(r.getId(), newStatus, reason, admin.getId());

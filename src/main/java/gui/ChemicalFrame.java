@@ -1,14 +1,17 @@
 package gui;
 
+
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import model.Chemical;
 import model.User;
 import service.ChemicalService;
 import util.Format;
+
 
 /**
  * Chemical list with search. Admin sees Add / Edit / Remove / Rules buttons.
@@ -17,6 +20,7 @@ import util.Format;
 public class ChemicalFrame extends JFrame {
     private static final String[] COLUMNS = {"Code", "Name", "Quantity", "Unit", "Hazard", "Group",
             "Temperature", "Location", "Min Stock", "Expires", "Status"};
+
 
     private final User user;
     private final ChemicalService service = new ChemicalService();
@@ -30,10 +34,64 @@ public class ChemicalFrame extends JFrame {
     private final JTextField searchField = new JTextField(15);
     private List<Chemical> shown = new ArrayList<>();
 
+
     public ChemicalFrame(User user, boolean readOnly) {
         this.user = user;
         setTitle(readOnly ? "Available Chemicals" : "Manage Chemicals");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+
+        table.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, 
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                
+                if (value != null) {
+                    String status = value.toString().toUpperCase();
+                    switch (status) {
+                        case "APPROVED":
+                        case "AVAILABLE":
+                        case "ACTIVE":
+                        case "IN STOCK":
+                        case "OK":
+                            c.setBackground(new Color(200, 240, 200));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "PENDING":
+                        case "LOW STOCK":
+                        case "RESTOCK":
+                        case "WARNING":
+                            c.setBackground(new Color(255, 243, 205));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        case "REJECTED":
+                        case "OUT OF STOCK":
+                        case "HAZARDOUS":
+                        case "CANCELLED":
+                        case "EXPIRED":
+                        case "EMPTY":
+                            c.setBackground(new Color(255, 204, 204));
+                            c.setForeground(Color.BLACK);
+                            break;
+                        default:
+                            c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                            c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
+                            break;
+                    }
+                }
+                
+                if (isSelected) {
+                    c.setBackground(table.getSelectionBackground());
+                    c.setForeground(table.getSelectionForeground());
+                }
+
+
+                return c;
+            }
+        });
+
 
         JButton searchBtn = new JButton("Search");
         JButton showAllBtn = new JButton("Show All");
@@ -48,10 +106,12 @@ public class ChemicalFrame extends JFrame {
         top.add(searchBtn);
         top.add(showAllBtn);
 
+
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         root.add(top, BorderLayout.NORTH);
         root.add(new JScrollPane(table), BorderLayout.CENTER);
+
 
         if (!readOnly) {
             JButton addBtn = new JButton("Add");
@@ -73,11 +133,13 @@ public class ChemicalFrame extends JFrame {
             root.add(bottom, BorderLayout.SOUTH);
         }
 
+
         setContentPane(root);
         setSize(1000, 450);
         setLocationRelativeTo(null);
         load("");
     }
+
 
     private void load(String keyword) {
         try {
@@ -96,6 +158,7 @@ public class ChemicalFrame extends JFrame {
         }
     }
 
+
     private Chemical selected() {
         int row = table.getSelectedRow();
         if (row < 0) {
@@ -105,6 +168,7 @@ public class ChemicalFrame extends JFrame {
         return shown.get(row);
     }
 
+
     private void openForm(Chemical existing) {
         ChemicalFormDialog dialog = new ChemicalFormDialog(this, existing, user.getId(), service);
         dialog.setVisible(true);
@@ -112,6 +176,7 @@ public class ChemicalFrame extends JFrame {
             load("");
         }
     }
+
 
     private void remove() {
         Chemical c = selected();

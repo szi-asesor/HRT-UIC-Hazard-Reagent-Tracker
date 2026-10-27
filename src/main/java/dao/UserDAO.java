@@ -8,7 +8,7 @@ import model.Admin;
 import model.Teacher;
 import model.User;
 
-/** Reads users from the database. Returns an Admin or a Teacher object depending on the role. */
+/** Reads users and creates teacher accounts in the database. */
 public class UserDAO {
 
     public User findByEmail(String email) throws SQLException {
@@ -23,6 +23,17 @@ public class UserDAO {
             }
         }
         return null;
+    }
+
+    public void addTeacher(String name, String passwordHash, String email) throws SQLException {
+        String sql = "INSERT INTO users (name, password, email, role) VALUES (?, ?, ?, 'TEACHER')";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setString(2, passwordHash);
+            ps.setString(3, email);
+            ps.executeUpdate();
+        }
     }
 
     /** The return type is User, but the object is really an Admin or a Teacher. */

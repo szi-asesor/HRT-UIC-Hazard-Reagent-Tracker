@@ -42,7 +42,7 @@ Flow: **GUI → Service → DAO → MySQL**, and RequestService → EmailService
 
 ## 5. GUI screen flow
 ```
-Login ─┬─ Admin Dashboard ─ Chemicals (add/edit/remove/search/rules) ─ Requests (approve/reject) ─ Inventory ─ Logout
+Login ─┬─ Admin Dashboard ─ Add Teacher / Chemicals (add/edit/remove/search/rules) ─ Requests (approve/reject) ─ Inventory ─ Logout
        └─ Teacher Dashboard ─ New Request ─ My Requests ─ Chemicals (read-only) ─ Logout
 ```
 
@@ -78,6 +78,7 @@ storing an Acid chemical in Cabinet B (Base) triggers the incompatibility WARNIN
   Stock follows one rule: it is released exactly when a request is APPROVED. Moving *to* APPROVED releases stock (blocked if insufficient);
   moving *away from* APPROVED returns it (recorded as ADJUSTMENT transactions). Emails go out for APPROVED and REJECTED.
 - **Admin: Add Chemical** button directly on the Admin Dashboard (also under Chemicals → Add).
+- **Admin: Add Teacher** from the Admin Dashboard, creating a teacher login without editing the database.
 
 ## Added features
 - **Login by email** (admin and teachers). Emails are unique.

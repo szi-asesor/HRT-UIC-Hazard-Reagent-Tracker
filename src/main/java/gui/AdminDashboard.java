@@ -8,12 +8,14 @@ import javax.swing.*;
 import model.Admin;
 import model.Chemical;
 import model.ChemicalRequest;
+import service.AuthenticationService;
 import service.ChemicalService;
 import service.RequestService;
 
 /** Main screen for the Admin: summary numbers and buttons. */
 public class AdminDashboard extends JFrame {
     private final Admin admin;
+    private final AuthenticationService authenticationService = new AuthenticationService();
     private final ChemicalService chemicalService = new ChemicalService();
     private final RequestService requestService = new RequestService();
 
@@ -36,14 +38,16 @@ public class AdminDashboard extends JFrame {
         stats.add(pendingLabel);
         stats.add(expiredLabel);
 
-        JPanel buttons = new JPanel(new GridLayout(5, 1, 6, 6));
+        JPanel buttons = new JPanel(new GridLayout(6, 1, 6, 6));
         JButton chemicalsBtn = new JButton("Chemicals");
         JButton addChemicalBtn = new JButton("Add Chemical");
+        JButton addTeacherBtn = new JButton("Add Teacher");
         JButton requestsBtn = new JButton("Requests");
         JButton inventoryBtn = new JButton("Inventory");
         JButton logoutBtn = new JButton("Logout");
         buttons.add(chemicalsBtn);
         buttons.add(addChemicalBtn);
+        buttons.add(addTeacherBtn);
         buttons.add(requestsBtn);
         buttons.add(inventoryBtn);
         buttons.add(logoutBtn);
@@ -55,6 +59,13 @@ public class AdminDashboard extends JFrame {
             if (dialog.isSaved()) {
                 refreshStats();
                 JOptionPane.showMessageDialog(this, "Chemical added.");
+            }
+        });
+        addTeacherBtn.addActionListener(e -> {
+            TeacherFormDialog dialog = new TeacherFormDialog(this, authenticationService);
+            dialog.setVisible(true);
+            if (dialog.isSaved()) {
+                JOptionPane.showMessageDialog(this, "Teacher added.");
             }
         });
         requestsBtn.addActionListener(e -> new RequestManagementFrame(admin).setVisible(true));
@@ -70,7 +81,7 @@ public class AdminDashboard extends JFrame {
         root.add(stats, BorderLayout.CENTER);
         root.add(buttons, BorderLayout.EAST);
         setContentPane(root);
-        setSize(520, 300);
+        setSize(520, 340);
         setLocationRelativeTo(null);
 
         // refresh the numbers whenever this window comes back to the front

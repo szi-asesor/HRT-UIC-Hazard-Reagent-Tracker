@@ -46,6 +46,9 @@ public class RequestFrame extends JFrame {
         setTitle(existing == null ? "New Chemical Request" : "Edit Request " + existing.getIdText());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+        // Enable automatic table sorting
+        table.setAutoCreateRowSorter(true);
+
         JPanel info = new JPanel(new GridLayout(2, 2, 6, 6));
         info.add(new JLabel("Class / Section"));
         info.add(classField);
@@ -136,9 +139,10 @@ public class RequestFrame extends JFrame {
     }
 
     private void removeItem() {
-        int row = table.getSelectedRow();
-        if (row >= 0) {
-            items.remove(row);
+        int viewRow = table.getSelectedRow();
+        if (viewRow >= 0) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            items.remove(modelRow);
             refreshTable();
         }
     }

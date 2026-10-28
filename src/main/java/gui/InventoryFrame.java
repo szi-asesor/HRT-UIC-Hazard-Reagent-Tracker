@@ -26,11 +26,15 @@ public class InventoryFrame extends JFrame {
             return false;
         }
     };
+    private final JTable table = new JTable(model);
 
     public InventoryFrame(Admin admin) {
         this.admin = admin;
         setTitle("Inventory");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+        // Enable automatic table sorting
+        table.setAutoCreateRowSorter(true);
 
         JButton addBtn = new JButton("Add Stock");
         JButton releaseBtn = new JButton("Release Stock");
@@ -47,7 +51,7 @@ public class InventoryFrame extends JFrame {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         root.add(top, BorderLayout.NORTH);
-        root.add(new JScrollPane(new JTable(model)), BorderLayout.CENTER);
+        root.add(new JScrollPane(table), BorderLayout.CENTER);
         setContentPane(root);
         setSize(800, 450);
         setLocationRelativeTo(null);

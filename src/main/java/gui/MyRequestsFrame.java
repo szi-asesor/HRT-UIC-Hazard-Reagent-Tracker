@@ -1,6 +1,5 @@
 package gui;
 
-
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -13,7 +12,6 @@ import javax.swing.table.DefaultTableModel;
 import model.ChemicalRequest;
 import model.Teacher;
 import service.RequestService;
-
 
 /** Teacher screen: request history. PENDING requests can be edited or cancelled. */
 public class MyRequestsFrame extends JFrame {
@@ -32,17 +30,25 @@ public class MyRequestsFrame extends JFrame {
     private final JButton cancelBtn = new JButton("Cancel Request");
     private List<ChemicalRequest> requests = new ArrayList<>();
 
-
     public MyRequestsFrame(Teacher teacher) {
         this.teacher = teacher;
         setTitle("My Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+        // Enable automatic table sorting
+        table.setAutoCreateRowSorter(true);
+
+        // Auto-refresh table when the window regains focus
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                load();
+            }
+        });
 
         details.setEditable(false);
         editBtn.setEnabled(false);
         cancelBtn.setEnabled(false);
-
 
         table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
@@ -83,16 +89,15 @@ public class MyRequestsFrame extends JFrame {
                     c.setForeground(table.getSelectionForeground());
                 }
 
-
                 return c;
             }
         });
 
-
         table.getSelectionModel().addListSelectionListener(e -> {
-            int row = table.getSelectedRow();
-            if (!e.getValueIsAdjusting() && row >= 0) {
-                ChemicalRequest r = requests.get(row);
+            int viewRow = table.getSelectedRow();
+            if (!e.getValueIsAdjusting() && viewRow >= 0) {
+                int modelRow = table.convertRowIndexToModel(viewRow);
+                ChemicalRequest r = requests.get(modelRow);
                 details.setText(r.getDetailsText());
                 editBtn.setEnabled(r.isPending());     // only PENDING requests can be changed
                 cancelBtn.setEnabled(r.isPending());
@@ -101,14 +106,12 @@ public class MyRequestsFrame extends JFrame {
         editBtn.addActionListener(e -> edit());
         cancelBtn.addActionListener(e -> cancel());
 
-
         JButton refreshBtn = new JButton("Refresh");
         refreshBtn.addActionListener(e -> load());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.add(refreshBtn);
         top.add(editBtn);
         top.add(cancelBtn);
-
 
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -120,7 +123,6 @@ public class MyRequestsFrame extends JFrame {
         setLocationRelativeTo(null);
         load();
     }
-
 
     private void load() {
         try {
@@ -141,12 +143,12 @@ public class MyRequestsFrame extends JFrame {
         }
     }
 
-
     private ChemicalRequest selected() {
-        int row = table.getSelectedRow();
-        return row < 0 ? null : requests.get(row);
+        int viewRow = table.getSelectedRow();
+        if (viewRow < 0) return null;
+        int modelRow = table.convertRowIndexToModel(viewRow);
+        return requests.get(modelRow);
     }
-
 
     private void edit() {
         ChemicalRequest r = selected();
@@ -160,7 +162,6 @@ public class MyRequestsFrame extends JFrame {
         });
         frame.setVisible(true);
     }
-
 
     private void cancel() {
         ChemicalRequest r = selected();

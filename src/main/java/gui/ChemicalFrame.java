@@ -1,7 +1,8 @@
 package gui;
 
-
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
@@ -12,7 +13,6 @@ import model.User;
 import service.ChemicalService;
 import util.Format;
 
-
 /**
  * Chemical list with search. Admin sees Add / Edit / Remove / Rules buttons.
  * Teacher sees the same table read-only (readOnly = true) to view hazard information.
@@ -20,7 +20,6 @@ import util.Format;
 public class ChemicalFrame extends JFrame {
     private static final String[] COLUMNS = {"Code", "Name", "Quantity", "Unit", "Hazard", "Group",
             "Temperature", "Location", "Min Stock", "Expires", "Status"};
-
 
     private final User user;
     private final ChemicalService service = new ChemicalService();
@@ -34,12 +33,21 @@ public class ChemicalFrame extends JFrame {
     private final JTextField searchField = new JTextField(15);
     private List<Chemical> shown = new ArrayList<>();
 
-
     public ChemicalFrame(User user, boolean readOnly) {
         this.user = user;
         setTitle(readOnly ? "Available Chemicals" : "Manage Chemicals");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+        // Enable automatic row sorting
+        table.setAutoCreateRowSorter(true);
+
+        // Refresh table data whenever the window regains focus
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                load(searchField.getText());
+            }
+        });
 
         table.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
@@ -87,11 +95,9 @@ public class ChemicalFrame extends JFrame {
                     c.setForeground(table.getSelectionForeground());
                 }
 
-
                 return c;
             }
         });
-
 
         JButton searchBtn = new JButton("Search");
         JButton showAllBtn = new JButton("Show All");
@@ -106,12 +112,10 @@ public class ChemicalFrame extends JFrame {
         top.add(searchBtn);
         top.add(showAllBtn);
 
-
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         root.add(top, BorderLayout.NORTH);
         root.add(new JScrollPane(table), BorderLayout.CENTER);
-
 
         if (!readOnly) {
             JButton addBtn = new JButton("Add");
@@ -133,13 +137,11 @@ public class ChemicalFrame extends JFrame {
             root.add(bottom, BorderLayout.SOUTH);
         }
 
-
         setContentPane(root);
         setSize(1000, 450);
         setLocationRelativeTo(null);
         load("");
     }
-
 
     private void load(String keyword) {
         try {
@@ -158,16 +160,15 @@ public class ChemicalFrame extends JFrame {
         }
     }
 
-
     private Chemical selected() {
-        int row = table.getSelectedRow();
-        if (row < 0) {
+        int viewRow = table.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Please select a chemical first.");
             return null;
         }
-        return shown.get(row);
+        int modelRow = table.convertRowIndexToModel(viewRow);
+        return shown.get(modelRow);
     }
-
 
     private void openForm(Chemical existing) {
         ChemicalFormDialog dialog = new ChemicalFormDialog(this, existing, user.getId(), service);
@@ -176,7 +177,6 @@ public class ChemicalFrame extends JFrame {
             load("");
         }
     }
-
 
     private void remove() {
         Chemical c = selected();

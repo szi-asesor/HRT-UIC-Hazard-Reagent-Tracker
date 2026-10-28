@@ -1,17 +1,18 @@
 package gui;
 
-
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import model.Admin;
 import model.ChemicalRequest;
 import service.RequestService;
-
 
 /** Admin screen: review requests, approve / reject, or change a request to any status. */
 public class RequestManagementFrame extends JFrame {
@@ -25,22 +26,36 @@ public class RequestManagementFrame extends JFrame {
         }
     };
     private final JTable table = new JTable(model);
+    private final TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
+    private final JComboBox<String> statusFilterCombo = new JComboBox<>(new String[]{
+            "ALL", ChemicalRequest.PENDING, ChemicalRequest.APPROVED, ChemicalRequest.REJECTED, ChemicalRequest.CANCELLED
+    });
     private final JTextArea details = new JTextArea(9, 40);
     private final JButton approveBtn = new JButton("Approve");
     private final JButton rejectBtn = new JButton("Reject");
     private final JButton statusBtn = new JButton("Change Status...");
     private List<ChemicalRequest> requests = new ArrayList<>();
 
-
     public RequestManagementFrame(Admin admin) {
         this.admin = admin;
         setTitle("Manage Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+        // Attach sorter and row filter
+        table.setRowSorter(sorter);
+
+        // Auto-refresh table when the window regains focus
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                load();
+            }
+        });
+
+        statusFilterCombo.addActionListener(e -> applyFilter());
 
         details.setEditable(false);
         setButtons(null);
-
 
         table.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
@@ -82,16 +97,15 @@ public class RequestManagementFrame extends JFrame {
                     c.setForeground(table.getSelectionForeground());
                 }
 
-
                 return c;
             }
         });
 
-
         table.getSelectionModel().addListSelectionListener(e -> {
-            int row = table.getSelectedRow();
-            if (!e.getValueIsAdjusting() && row >= 0) {
-                ChemicalRequest r = requests.get(row);
+            int viewRow = table.getSelectedRow();
+            if (!e.getValueIsAdjusting() && viewRow >= 0) {
+                int modelRow = table.convertRowIndexToModel(viewRow);
+                ChemicalRequest r = requests.get(modelRow);
                 details.setText(r.getDetailsText());
                 setButtons(r);
             }
@@ -100,20 +114,22 @@ public class RequestManagementFrame extends JFrame {
         rejectBtn.addActionListener(e -> apply(ChemicalRequest.REJECTED));
         statusBtn.addActionListener(e -> chooseStatus());
 
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(new JLabel("Filter Status:"));
+        top.add(statusFilterCombo);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttons.add(approveBtn);
         buttons.add(rejectBtn);
         buttons.add(statusBtn);
 
-
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(new JScrollPane(details), BorderLayout.CENTER);
         bottom.add(buttons, BorderLayout.SOUTH);
 
-
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        root.add(top, BorderLayout.NORTH);
         root.add(new JScrollPane(table), BorderLayout.CENTER);
         root.add(bottom, BorderLayout.SOUTH);
         setContentPane(root);
@@ -122,6 +138,15 @@ public class RequestManagementFrame extends JFrame {
         load();
     }
 
+    private void applyFilter() {
+        String selected = (String) statusFilterCombo.getSelectedItem();
+        if ("ALL".equals(selected) || selected == null) {
+            sorter.setRowFilter(null);
+        } else {
+            // Column 5 is the Status column
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)^" + selected + "$", 5));
+        }
+    }
 
     /** Approve / Reject are only useful when the request is not already in that status. */
     private void setButtons(ChemicalRequest r) {
@@ -129,7 +154,6 @@ public class RequestManagementFrame extends JFrame {
         rejectBtn.setEnabled(r != null && !r.getStatus().equals(ChemicalRequest.REJECTED));
         statusBtn.setEnabled(r != null);
     }
-
 
     private void load() {
         try {
@@ -142,18 +166,19 @@ public class RequestManagementFrame extends JFrame {
             }
             details.setText("");
             setButtons(null);
+            applyFilter();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Database error: " + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-
     private ChemicalRequest selected() {
-        int row = table.getSelectedRow();
-        return row < 0 ? null : requests.get(row);
+        int viewRow = table.getSelectedRow();
+        if (viewRow < 0) return null;
+        int modelRow = table.convertRowIndexToModel(viewRow);
+        return requests.get(modelRow);
     }
-
 
     private void chooseStatus() {
         ChemicalRequest r = selected();
@@ -167,12 +192,10 @@ public class RequestManagementFrame extends JFrame {
         }
     }
 
-
     /** One method handles every status change, so the rules stay in RequestService. */
     private void apply(String newStatus) {
         ChemicalRequest r = selected();
         if (r == null) return;
-
 
         String old = r.getStatus();
         String note = "";
@@ -191,13 +214,11 @@ public class RequestManagementFrame extends JFrame {
                 "Confirm", JOptionPane.YES_NO_OPTION);
         if (answer != JOptionPane.YES_OPTION) return;
 
-
         String reason = null;
         if (newStatus.equals(ChemicalRequest.REJECTED)) {
             reason = JOptionPane.showInputDialog(this, "Reason for rejection:");
             if (reason == null) return;   // admin pressed Cancel
         }
-
 
         try {
             String emailProblem = service.changeStatus(r.getId(), newStatus, reason, admin.getId());

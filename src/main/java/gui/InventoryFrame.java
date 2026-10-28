@@ -1,6 +1,8 @@
 package gui;
 
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.time.format.DateTimeFormatter;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -26,11 +28,24 @@ public class InventoryFrame extends JFrame {
             return false;
         }
     };
+    private final JTable table = new JTable(model);
 
     public InventoryFrame(Admin admin) {
         this.admin = admin;
         setTitle("Inventory");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+        // Enable table sorting and prevent column reordering
+        table.setAutoCreateRowSorter(true);
+        table.getTableHeader().setReorderingAllowed(false);
+
+        // Auto-refresh when window regains focus
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                refresh();
+            }
+        });
 
         JButton addBtn = new JButton("Add Stock");
         JButton releaseBtn = new JButton("Release Stock");
@@ -47,7 +62,7 @@ public class InventoryFrame extends JFrame {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         root.add(top, BorderLayout.NORTH);
-        root.add(new JScrollPane(new JTable(model)), BorderLayout.CENTER);
+        root.add(new JScrollPane(table), BorderLayout.CENTER);
         setContentPane(root);
         setSize(800, 450);
         setLocationRelativeTo(null);

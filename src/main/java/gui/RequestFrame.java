@@ -27,6 +27,7 @@ public class RequestFrame extends JFrame {
     private final JTextField classField = new JTextField(15);
     private final JTextField experimentField = new JTextField(25);
     private final JComboBox<Chemical> chemicalBox = new JComboBox<>();
+    private final JLabel selectedChemicalLabel = new JLabel("Selected chemical: —");
     private final JTextField quantityField = new JTextField(8);
     private final DefaultTableModel model = new DefaultTableModel(new String[]{"Chemical", "Quantity", "Unit"}, 0) {
         @Override
@@ -46,26 +47,38 @@ public class RequestFrame extends JFrame {
         setTitle(existing == null ? "New Chemical Request" : "Edit Request " + existing.getIdText());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
+        Theme.styleInput(classField);
+        Theme.styleInput(experimentField);
+        Theme.styleInput(chemicalBox);
+        Theme.styleInput(quantityField);
+        selectedChemicalLabel.setFont(Theme.BODY);
+        selectedChemicalLabel.setForeground(Theme.MUTED);
+        chemicalBox.addActionListener(event -> updateSelectedChemical());
+        Theme.styleTable(table);
+        table.setAutoCreateRowSorter(true);
+
         JPanel info = new JPanel(new GridLayout(2, 2, 6, 6));
         info.add(new JLabel("Class / Section"));
         info.add(classField);
         info.add(new JLabel("Purpose / Experiment"));
         info.add(experimentField);
 
-        JButton addBtn = new JButton("Add Chemical");
+        RoundedButton addBtn = new RoundedButton("Add Chemical", RoundedButton.Kind.SECONDARY);
         addBtn.addActionListener(e -> addItem());
         JPanel picker = new JPanel(new FlowLayout(FlowLayout.LEFT));
         picker.add(chemicalBox);
         picker.add(new JLabel("Quantity"));
         picker.add(quantityField);
         picker.add(addBtn);
+        picker.add(selectedChemicalLabel);
 
         JPanel top = new JPanel(new BorderLayout(6, 6));
         top.add(info, BorderLayout.NORTH);
         top.add(picker, BorderLayout.SOUTH);
 
-        JButton removeBtn = new JButton("Remove Selected");
-        JButton submitBtn = new JButton(existing == null ? "Submit Request" : "Save Changes");
+        RoundedButton removeBtn = new RoundedButton("Remove Selected", RoundedButton.Kind.DANGER);
+        RoundedButton submitBtn = new RoundedButton(existing == null ? "Submit Request" : "Save Changes",
+                RoundedButton.Kind.PRIMARY);
         removeBtn.addActionListener(e -> removeItem());
         submitBtn.addActionListener(e -> submit());
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -78,7 +91,7 @@ public class RequestFrame extends JFrame {
         root.add(new JScrollPane(table), BorderLayout.CENTER);
         root.add(bottom, BorderLayout.SOUTH);
         setContentPane(root);
-        setSize(700, 420);
+        setSize(Theme.screenPercent(0.9));
         setLocationRelativeTo(null);
         loadChemicals();
 
@@ -86,7 +99,8 @@ public class RequestFrame extends JFrame {
             classField.setText(existing.getClassName());
             experimentField.setText(existing.getExperiment());
             for (RequestItem old : existing.getItems()) {
-                items.add(new RequestItem(old.getChemicalId(), old.getChemicalName(), old.getUnit(), old.getQuantity()));
+                items.add(new RequestItem(old.getChemicalId(), old.getChemicalName(), old.getUnit(),
+                        old.getQuantity(), old.getStorageGroup(), old.getHazardType()));
             }
             refreshTable();
         }
@@ -97,10 +111,16 @@ public class RequestFrame extends JFrame {
             for (Chemical c : chemicalService.getAll()) {
                 chemicalBox.addItem(c);
             }
+            updateSelectedChemical();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Database error: " + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void updateSelectedChemical() {
+        Chemical selected = (Chemical) chemicalBox.getSelectedItem();
+        selectedChemicalLabel.setText("Selected chemical: " + (selected == null ? "—" : selected.getName()));
     }
 
     private void addItem() {
@@ -116,9 +136,22 @@ public class RequestFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "Quantity must be a number.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        if (qty <= 0) {
+        if (!Double.isFinite(qty) || qty <= 0) {
             JOptionPane.showMessageDialog(this, "Quantity must be greater than zero.", "Error",
                     JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        double requestedTotal = qty;
+        for (RequestItem item : items) {
+            if (item.getChemicalId() == c.getId()) {
+                requestedTotal += item.getQuantity();
+                break;
+            }
+        }
+        if (requestedTotal > c.getQuantity()) {
+            JOptionPane.showMessageDialog(this, "Only " + Format.qty(c.getQuantity()) + " " + c.getUnit()
+                    + " of " + c.getName() + " is currently available. Reduce the requested quantity.",
+                    "Insufficient inventory", JOptionPane.WARNING_MESSAGE);
             return;
         }
         // same chemical twice? just add the quantities together
@@ -130,15 +163,17 @@ public class RequestFrame extends JFrame {
                 return;
             }
         }
-        items.add(new RequestItem(c.getId(), c.getName(), c.getUnit(), qty));
+        items.add(new RequestItem(c.getId(), c.getName(), c.getUnit(), qty,
+                c.getStorageGroup(), c.getHazardType()));
         refreshTable();
         quantityField.setText("");
     }
 
     private void removeItem() {
-        int row = table.getSelectedRow();
-        if (row >= 0) {
-            items.remove(row);
+        int viewRow = table.getSelectedRow();
+        if (viewRow >= 0) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            items.remove(modelRow);
             refreshTable();
         }
     }

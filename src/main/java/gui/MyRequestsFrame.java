@@ -26,8 +26,8 @@ public class MyRequestsFrame extends JFrame {
     };
     private final JTable table = new JTable(model);
     private final JTextArea details = new JTextArea(8, 40);
-    private final JButton editBtn = new JButton("Edit Request");
-    private final JButton cancelBtn = new JButton("Cancel Request");
+    private final RoundedButton editBtn = new RoundedButton("Edit Request", RoundedButton.Kind.SECONDARY);
+    private final RoundedButton cancelBtn = new RoundedButton("Cancel Request", RoundedButton.Kind.DANGER);
     private List<ChemicalRequest> requests = new ArrayList<>();
 
     public MyRequestsFrame(Teacher teacher) {
@@ -35,26 +35,21 @@ public class MyRequestsFrame extends JFrame {
         setTitle("My Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-        // Enable automatic table sorting
+        Theme.styleTable(table);
         table.setAutoCreateRowSorter(true);
-
-        // Auto-refresh table when the window regains focus
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowGainedFocus(WindowEvent e) {
-                load();
-            }
+        details.setFont(Theme.BODY);
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowGainedFocus(WindowEvent event) { load(); }
         });
-
         details.setEditable(false);
         editBtn.setEnabled(false);
         cancelBtn.setEnabled(false);
 
         table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, 
+            public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
-                
+
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 if (value != null) {
                     String status = value.toString().toUpperCase();
@@ -83,7 +78,7 @@ public class MyRequestsFrame extends JFrame {
                             break;
                     }
                 }
-                
+
                 if (isSelected) {
                     c.setBackground(table.getSelectionBackground());
                     c.setForeground(table.getSelectionForeground());
@@ -106,7 +101,7 @@ public class MyRequestsFrame extends JFrame {
         editBtn.addActionListener(e -> edit());
         cancelBtn.addActionListener(e -> cancel());
 
-        JButton refreshBtn = new JButton("Refresh");
+        RoundedButton refreshBtn = new RoundedButton("Refresh", RoundedButton.Kind.SECONDARY);
         refreshBtn.addActionListener(e -> load());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.add(refreshBtn);
@@ -119,7 +114,7 @@ public class MyRequestsFrame extends JFrame {
         root.add(new JScrollPane(table), BorderLayout.CENTER);
         root.add(new JScrollPane(details), BorderLayout.SOUTH);
         setContentPane(root);
-        setSize(800, 520);
+        setSize(Theme.screenPercent(0.9));
         setLocationRelativeTo(null);
         load();
     }

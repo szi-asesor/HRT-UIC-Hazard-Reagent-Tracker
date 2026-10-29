@@ -18,10 +18,25 @@ public class ChemicalDAO {
         return query(ACTIVE + " ORDER BY name");
     }
 
-    /** Search by chemical name or hazard type. */
+    /** Search by chemical code, name, or hazard type. */
     public List<Chemical> search(String keyword) throws SQLException {
         String like = "%" + keyword + "%";
-        return query(ACTIVE + " AND (name LIKE ? OR hazard_type LIKE ?) ORDER BY name", like, like);
+        return query(ACTIVE + " AND (name LIKE ? OR hazard_type LIKE ? "
+                + "OR CONCAT('C', LPAD(id, 3, '0')) LIKE ?) ORDER BY name", like, like, like);
+    }
+
+    /** Checks active inventory names case-insensitively, excluding the edited record. */
+    public boolean hasActiveName(String name, int excludeId) throws SQLException {
+        String sql = "SELECT 1 FROM chemicals WHERE active = TRUE AND LOWER(TRIM(name)) = LOWER(TRIM(?)) "
+                + "AND id <> ? LIMIT 1";
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setInt(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     /** Chemicals stored in the same location (used for the compatibility check). */

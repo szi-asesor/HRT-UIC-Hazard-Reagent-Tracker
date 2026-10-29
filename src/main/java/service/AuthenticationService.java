@@ -6,11 +6,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.Locale;
+import java.util.List;
 import model.User;
 
 /** Checks email + password (the email is the login) and returns the matching User (an Admin or a Teacher). */
 public class AuthenticationService {
     private final UserDAO userDAO = new UserDAO();
+
+    /** Finds account emails for the login field's optional autocomplete list. */
+    public List<String> suggestEmails(String prefix) throws SQLException {
+        if (prefix == null || prefix.isBlank()) return List.of();
+        return userDAO.findEmailSuggestions(prefix.trim());
+    }
 
     public User login(String email, String password) throws SQLException {
         if (email == null || email.trim().isEmpty() || password == null || password.isEmpty()) {

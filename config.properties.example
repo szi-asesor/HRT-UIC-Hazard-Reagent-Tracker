@@ -1,8 +1,6 @@
-# ---- MySQL ----
+# Copy this file to config.properties and fill in your own local credentials.
 db.url=jdbc:mysql://localhost:3306/hazard_tracker
 db.user=root
-db.password=
-
-# ---- Gmail SMTP (use a Gmail APP PASSWORD, not your normal password) ----
-gmail.address=
-gmail.app.password=
+db.password=YOUR_MYSQL_PASSWORD
+gmail.address=YOUR_GMAIL_ADDRESS@gmail.com
+gmail.app.password=YOUR_16_CHARACTER_GOOGLE_APP_PASSWORD

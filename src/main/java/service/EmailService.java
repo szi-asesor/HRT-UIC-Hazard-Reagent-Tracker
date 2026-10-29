@@ -13,7 +13,7 @@ import model.ChemicalRequest;
 import util.Config;
 
 /**
- * Sends the approval / rejection emails through Gmail SMTP (smtp.gmail.com, port 587, STARTTLS).
+ * Sends request emails through Gmail SMTP (smtp.gmail.com, port 587, STARTTLS).
  * It IMPLEMENTS NotificationService (abstraction). No email code lives in the GUI.
  * The Gmail address and App Password come from config.properties.
  */
@@ -29,12 +29,16 @@ public class EmailService implements NotificationService {
     }
 
     @Override
-    public void sendRejected(ChemicalRequest r) throws MessagingException {
-        String body = "Your chemical request has been rejected.\n\n"
+    public void sendCompatibilityClarification(ChemicalRequest r, java.util.List<String> incompatiblePairs)
+            throws MessagingException {
+        String body = "Your chemical request needs a safety clarification before it can be reviewed.\n\n"
                 + "Request ID: " + r.getIdText() + "\n\n"
                 + "Experiment:\n" + r.getExperiment() + "\n\n"
-                + "Reason:\n" + r.getRejectionReason();
-        send(r.getTeacherEmail(), "Chemical Request Rejected", body);
+                + "The request includes these storage-incompatible chemical pairs:\n - "
+                + String.join("\n - ", incompatiblePairs) + "\n\n"
+                + "Please reply with the reason these chemicals are being requested together and explain "
+                + "how they will be handled separately. The request remains pending while this is clarified.";
+        send(r.getTeacherEmail(), "Safety clarification for chemical request " + r.getIdText(), body);
     }
 
     private void send(String to, String subject, String body) throws MessagingException {

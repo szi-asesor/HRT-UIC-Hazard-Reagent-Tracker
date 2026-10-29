@@ -1,17 +1,22 @@
 package service;
 
 import dao.ChemicalDAO;
-import dao.CompatibilityDAO;
 import dao.TransactionDAO;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import model.Chemical;
 import model.Transaction;
 
 /** Business rules for chemicals: validation, search, compatibility check, dashboard counts. */
 public class ChemicalService {
+    private static final String[][] INCOMPATIBLE_PAIRS = {
+            {"Acid", "Base"}, {"Acid", "Flammable"}, {"Base", "Flammable"},
+            {"Oxidizer", "Flammable"}
+    };
+    private static final String[] ACID_CYANIDE_PAIR = {"Acid", "Cyanide"};
+    private static final String[] OXIDIZER_ORGANIC_PAIR = {"Oxidizer", "Organic Material"};
     private final ChemicalDAO chemicalDAO = new ChemicalDAO();
-    private final CompatibilityDAO compatibilityDAO = new CompatibilityDAO();
     private final TransactionDAO transactionDAO = new TransactionDAO();
 
     public List<Chemical> getAll() throws SQLException {
@@ -50,13 +55,21 @@ public class ChemicalService {
     /** Adds the chemical and records an ADD transaction for the starting quantity. */
     public void add(Chemical c, int userId) throws SQLException {
         validate(c, true);
+        ensureUniqueName(c, 0);
         chemicalDAO.insert(c);
         transactionDAO.insert(new Transaction(c.getId(), userId, "ADD", c.getQuantity()));
     }
 
     public void update(Chemical c) throws SQLException {
         validate(c, false);
+        ensureUniqueName(c, c.getId());
         chemicalDAO.update(c);
+    }
+
+    private void ensureUniqueName(Chemical chemical, int excludeId) throws SQLException {
+        if (chemicalDAO.hasActiveName(chemical.getName().trim(), excludeId)) {
+            throw new IllegalArgumentException("A chemical with this name already exists in active inventory.");
+        }
     }
 
     public void deactivate(int chemicalId) throws SQLException {
@@ -69,8 +82,12 @@ public class ChemicalService {
      */
     public String checkCompatibility(Chemical c) throws SQLException {
         StringBuilder conflicts = new StringBuilder();
-        for (Chemical other : chemicalDAO.findByLocation(c.getLocation(), c.getId())) {
-            if (compatibilityDAO.areIncompatible(c.getStorageGroup(), other.getStorageGroup())) {
+        for (Chemical other : chemicalDAO.findAllActive()) {
+            boolean sameLocation = canonicalStorageLocation(other.getLocation(), other.getStorageGroup())
+                    .equals(canonicalStorageLocation(c.getLocation(), c.getStorageGroup()));
+            if (other.getId() != c.getId() && sameLocation
+                    && areIncompatibleChemicals(c.getStorageGroup(), c.getHazardType(),
+                            other.getStorageGroup(), other.getHazardType())) {
                 conflicts.append("  - ").append(other.getName())
                         .append(" (").append(other.getStorageGroup()).append(")\n");
             }
@@ -82,38 +99,56 @@ public class ChemicalService {
                 + "'" + c.getName() + "' (" + c.getStorageGroup() + ") vs:\n" + conflicts;
     }
 
+    /** Maps legacy A–F cabinet records to the current category names using their stored group. */
+    public static String canonicalStorageLocation(String location, String group) {
+        if ("Flammable".equals(location) || "Acid Corrosive".equals(location)
+                || "Base Corrosive".equals(location) || "Oxidizer".equals(location)
+                || "Others".equals(location) || "None".equals(location)) return location;
+        if (group == null) return "None";
+        return switch (group) {
+            case "Acid" -> "Acid Corrosive";
+            case "Base" -> "Base Corrosive";
+            case "Oxidizer" -> "Oxidizer";
+            case "Flammable" -> "Flammable";
+            case "Other" -> "Others";
+            default -> "None";
+        };
+    }
+
     // ----- compatibility rules -----
 
-    public List<String[]> getRules() throws SQLException {
-        return compatibilityDAO.findAll();
+    public List<String[]> getRules() {
+        List<String[]> rules = new ArrayList<>();
+        for (String[] pair : INCOMPATIBLE_PAIRS) rules.add(pair.clone());
+        rules.add(ACID_CYANIDE_PAIR.clone());
+        rules.add(OXIDIZER_ORGANIC_PAIR.clone());
+        return rules;
     }
 
-    public void addRule(String groupA, String groupB) throws SQLException {
-        if (groupA.equals(groupB)) {
-            throw new IllegalArgumentException("Choose two different groups.");
+    public static boolean areIncompatibleGroups(String groupA, String groupB) {
+        if (groupA == null || groupB == null) return false;
+        for (String[] pair : INCOMPATIBLE_PAIRS) {
+            if ((pair[0].equalsIgnoreCase(groupA) && pair[1].equalsIgnoreCase(groupB))
+                    || (pair[1].equalsIgnoreCase(groupA) && pair[0].equalsIgnoreCase(groupB))) return true;
         }
-        if (compatibilityDAO.areIncompatible(groupA, groupB)) {
-            throw new IllegalArgumentException("That rule already exists.");
-        }
-        compatibilityDAO.add(groupA, groupB);
+        return false;
     }
 
-    public void updateRule(int ruleId, String groupA, String groupB) throws SQLException {
-        if (groupA.equals(groupB)) {
-            throw new IllegalArgumentException("Choose two different groups.");
-        }
-        for (String[] r : compatibilityDAO.findAll()) {
-            boolean samePair = (r[1].equals(groupA) && r[2].equals(groupB))
-                    || (r[1].equals(groupB) && r[2].equals(groupA));
-            if (samePair && !r[0].equals(String.valueOf(ruleId))) {
-                throw new IllegalArgumentException("That rule already exists.");
-            }
-        }
-        compatibilityDAO.update(ruleId, groupA, groupB);
+    public static boolean areIncompatibleChemicals(String groupA, String hazardsA,
+            String groupB, String hazardsB) {
+        if (areIncompatibleGroups(groupA, groupB)) return true;
+        return ("Acid".equalsIgnoreCase(groupA) && hasHazard(hazardsB, "Cyanide"))
+                || ("Acid".equalsIgnoreCase(groupB) && hasHazard(hazardsA, "Cyanide"))
+                || ("Oxidizer".equalsIgnoreCase(groupA) && hasHazard(hazardsB, "Organic Material"))
+                || ("Oxidizer".equalsIgnoreCase(groupB) && hasHazard(hazardsA, "Organic Material"));
     }
 
-    public void deleteRule(int ruleId) throws SQLException {
-        compatibilityDAO.delete(ruleId);
+    private static boolean hasHazard(String hazardTypes, String target) {
+        if (hazardTypes == null) return false;
+        for (String hazard : hazardTypes.split(",")) {
+            if (target.equalsIgnoreCase(hazard.trim())) return true;
+        }
+        return false;
     }
 
     // ----- dashboard counts -----

@@ -5,16 +5,20 @@ import dao.DatabaseConnection;
 import dao.RequestDAO;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import model.Chemical;
 import model.ChemicalRequest;
 import model.RequestItem;
 import model.Teacher;
+import util.Format;
 
 /**
  * The request workflow.
  * Teacher: create, edit and cancel (only while PENDING).
- * Admin: change the status (approve / reject / pending / cancelled).
+ * Admin: approve requests and ask for safety clarification when fixed incompatibility rules match.
  * Rule: stock is released from inventory exactly when a request is APPROVED.
  */
 public class RequestService {
@@ -55,14 +59,27 @@ public class RequestService {
     }
 
     private void validateChemicals(List<RequestItem> items) throws SQLException {
+        Map<Integer, Double> requestedQuantities = new LinkedHashMap<>();
         for (RequestItem item : items) {
-            Chemical chemical = chemicalDAO.findActiveById(item.getChemicalId());
+            if (!Double.isFinite(item.getQuantity()) || item.getQuantity() <= 0) {
+                throw new IllegalArgumentException("Requested quantity must be greater than zero.");
+            }
+            requestedQuantities.merge(item.getChemicalId(), item.getQuantity(), Double::sum);
+        }
+        for (Map.Entry<Integer, Double> requested : requestedQuantities.entrySet()) {
+            Chemical chemical = chemicalDAO.findActiveById(requested.getKey());
             if (chemical == null) {
                 throw new IllegalArgumentException(
-                        "Chemical " + item.getChemicalId() + " is unavailable or inactive.");
+                        "Chemical " + requested.getKey() + " is unavailable or inactive.");
             }
             if (chemical.isExpired()) {
                 throw new IllegalArgumentException(chemical.getName() + " is expired and cannot be requested.");
+            }
+            if (requested.getValue() > chemical.getQuantity()) {
+                throw new IllegalArgumentException("Requested " + Format.qty(requested.getValue()) + " "
+                        + chemical.getUnit() + " of " + chemical.getName() + ", but only "
+                        + Format.qty(chemical.getQuantity()) + " " + chemical.getUnit()
+                        + " is available. Reduce the quantity before submitting.");
             }
         }
     }
@@ -125,41 +142,89 @@ public class RequestService {
     // ---------------- admin actions ----------------
 
     public String approve(int requestId, int adminId) throws SQLException {
-        return changeStatus(requestId, ChemicalRequest.APPROVED, null, adminId);
+        return changeStatus(requestId, ChemicalRequest.APPROVED, adminId);
     }
 
-    public String reject(int requestId, String reason, int adminId) throws SQLException {
-        return changeStatus(requestId, ChemicalRequest.REJECTED, reason, adminId);
+    public List<String> incompatiblePairs(ChemicalRequest request) {
+        List<String> pairs = new ArrayList<>();
+        if (request == null) return pairs;
+        List<RequestItem> items = request.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            RequestItem first = items.get(i);
+            for (int j = i + 1; j < items.size(); j++) {
+                RequestItem second = items.get(j);
+                if (ChemicalService.areIncompatibleChemicals(first.getStorageGroup(), first.getHazardType(),
+                        second.getStorageGroup(), second.getHazardType())) {
+                    String firstClass = specialHazard(first);
+                    String secondClass = specialHazard(second);
+                    pairs.add(first.getChemicalName() + " (" + firstClass + ") + "
+                            + second.getChemicalName() + " (" + secondClass + ")");
+                }
+            }
+        }
+        return pairs;
+    }
+
+    private String specialHazard(RequestItem item) {
+        if (hasHazard(item, "Cyanide")) return "Cyanide";
+        if (hasHazard(item, "Organic Material")) return "Organic Material";
+        return item.getStorageGroup();
+    }
+
+    private boolean hasHazard(RequestItem item, String expected) {
+        return item.getHazardType() != null && java.util.Arrays.stream(item.getHazardType().split(","))
+                .map(String::trim).anyMatch(expected::equalsIgnoreCase);
+    }
+
+    /** Emails the teacher to explain a requested pair without rejecting or changing the request. */
+    public String askForSafetyClarification(int requestId) throws SQLException {
+        ChemicalRequest request = requestDAO.findById(requestId);
+        if (request == null) throw new IllegalArgumentException("Request not found.");
+        if (!ChemicalRequest.PENDING.equals(request.getStatus())) {
+            throw new IllegalArgumentException("Only pending requests can receive a safety clarification.");
+        }
+        List<String> pairs = incompatiblePairs(request);
+        if (pairs.isEmpty()) throw new IllegalArgumentException("No fixed incompatibility rule matches this request.");
+        try {
+            notifier.sendCompatibilityClarification(request, pairs);
+            return null;
+        } catch (Exception exception) {
+            return "The request remains pending, but the clarification email could not be sent:\n"
+                    + exception.getMessage();
+        }
     }
 
     /**
-     * Changes a request to any status.
+     * Changes a request between active statuses; cancellation is final.
      *  - becoming APPROVED  -> chemicals are released (fails with "Insufficient inventory" if short)
      *  - leaving APPROVED   -> the released chemicals are returned (ADJUSTMENT transactions)
      *  - all stock changes and the status change happen together (all or nothing)
-     * The teacher is emailed when the new status is APPROVED or REJECTED.
+     * Historical REJECTED rows remain readable, but the application cannot create that status.
      * Returns null on success, or a warning text if only the email failed.
      */
-    public String changeStatus(int requestId, String newStatus, String reason, int adminId) throws SQLException {
-        if (!newStatus.equals(ChemicalRequest.PENDING) && !newStatus.equals(ChemicalRequest.APPROVED)
-                && !newStatus.equals(ChemicalRequest.REJECTED) && !newStatus.equals(ChemicalRequest.CANCELLED)) {
-            throw new IllegalArgumentException("Unknown status.");
+    public String changeStatus(int requestId, String newStatus, int adminId) throws SQLException {
+        if (ChemicalRequest.REJECTED.equals(newStatus)) {
+            throw new IllegalArgumentException("Requests are not rejected. Send a safety clarification instead.");
         }
-        if (newStatus.equals(ChemicalRequest.REJECTED) && (reason == null || reason.trim().isEmpty())) {
-            throw new IllegalArgumentException("Please enter a rejection reason.");
+        if (!newStatus.equals(ChemicalRequest.PENDING) && !newStatus.equals(ChemicalRequest.APPROVED)
+                && !newStatus.equals(ChemicalRequest.CANCELLED)) {
+            throw new IllegalArgumentException("Unknown status.");
         }
         ChemicalRequest request = requestDAO.findById(requestId);
         if (request == null) {
             throw new IllegalArgumentException("Request not found.");
         }
         String oldStatus = request.getStatus();
+        if (ChemicalRequest.CANCELLED.equals(oldStatus)) {
+            throw new IllegalArgumentException("A teacher-cancelled request cannot be changed by an administrator.");
+        }
         if (oldStatus.equals(newStatus)) {
             throw new IllegalArgumentException("The request is already " + oldStatus + ".");
         }
 
         boolean releasing = !oldStatus.equals(ChemicalRequest.APPROVED) && newStatus.equals(ChemicalRequest.APPROVED);
         boolean returning = oldStatus.equals(ChemicalRequest.APPROVED) && !newStatus.equals(ChemicalRequest.APPROVED);
-        String savedReason = newStatus.equals(ChemicalRequest.REJECTED) ? reason.trim() : null;
+        String savedReason = null;
 
         try (Connection con = DatabaseConnection.getConnection()) {
             con.setAutoCommit(false);
@@ -200,8 +265,6 @@ public class RequestService {
         try {
             if (newStatus.equals(ChemicalRequest.APPROVED)) {
                 notifier.sendApproved(request);
-            } else if (newStatus.equals(ChemicalRequest.REJECTED)) {
-                notifier.sendRejected(request);
             }
             return null;
         } catch (Exception e) {

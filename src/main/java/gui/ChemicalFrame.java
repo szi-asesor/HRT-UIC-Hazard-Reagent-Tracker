@@ -38,76 +38,23 @@ public class ChemicalFrame extends JFrame {
         setTitle(readOnly ? "Available Chemicals" : "Manage Chemicals");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-        // Enable automatic row sorting
+        Theme.styleInput(searchField);
+        Theme.styleTable(table);
         table.setAutoCreateRowSorter(true);
-
-        // Refresh table data whenever the window regains focus
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowGainedFocus(WindowEvent e) {
-                load(searchField.getText());
-            }
+        table.getColumnModel().getColumn(10).setCellRenderer(new StatusRenderer());
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowGainedFocus(WindowEvent event) { load(searchField.getText()); }
         });
 
-        table.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, 
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                
-                if (value != null) {
-                    String status = value.toString().toUpperCase();
-                    switch (status) {
-                        case "APPROVED":
-                        case "AVAILABLE":
-                        case "ACTIVE":
-                        case "IN STOCK":
-                        case "OK":
-                            c.setBackground(new Color(200, 240, 200));
-                            c.setForeground(Color.BLACK);
-                            break;
-                        case "PENDING":
-                        case "LOW STOCK":
-                        case "RESTOCK":
-                        case "WARNING":
-                            c.setBackground(new Color(255, 243, 205));
-                            c.setForeground(Color.BLACK);
-                            break;
-                        case "REJECTED":
-                        case "OUT OF STOCK":
-                        case "HAZARDOUS":
-                        case "CANCELLED":
-                        case "EXPIRED":
-                        case "EMPTY":
-                            c.setBackground(new Color(255, 204, 204));
-                            c.setForeground(Color.BLACK);
-                            break;
-                        default:
-                            c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
-                            c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
-                            break;
-                    }
-                }
-                
-                if (isSelected) {
-                    c.setBackground(table.getSelectionBackground());
-                    c.setForeground(table.getSelectionForeground());
-                }
-
-                return c;
-            }
-        });
-
-        JButton searchBtn = new JButton("Search");
-        JButton showAllBtn = new JButton("Show All");
+        RoundedButton searchBtn = new RoundedButton("Search", RoundedButton.Kind.SECONDARY);
+        RoundedButton showAllBtn = new RoundedButton("Show All", RoundedButton.Kind.SECONDARY);
         searchBtn.addActionListener(e -> load(searchField.getText()));
         showAllBtn.addActionListener(e -> {
             searchField.setText("");
             load("");
         });
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.add(new JLabel("Search name / hazard:"));
+        top.add(new JLabel("Search code / name / hazard:"));
         top.add(searchField);
         top.add(searchBtn);
         top.add(showAllBtn);
@@ -118,10 +65,10 @@ public class ChemicalFrame extends JFrame {
         root.add(new JScrollPane(table), BorderLayout.CENTER);
 
         if (!readOnly) {
-            JButton addBtn = new JButton("Add");
-            JButton editBtn = new JButton("Edit");
-            JButton removeBtn = new JButton("Remove");
-            JButton rulesBtn = new JButton("Compatibility Rules");
+            RoundedButton addBtn = new RoundedButton("Add", RoundedButton.Kind.PRIMARY);
+            RoundedButton editBtn = new RoundedButton("Edit", RoundedButton.Kind.SECONDARY);
+            RoundedButton removeBtn = new RoundedButton("Remove", RoundedButton.Kind.DANGER);
+            RoundedButton rulesBtn = new RoundedButton("Storage Safety Rules", RoundedButton.Kind.SECONDARY);
             addBtn.addActionListener(e -> openForm(null));
             editBtn.addActionListener(e -> {
                 Chemical c = selected();
@@ -138,7 +85,7 @@ public class ChemicalFrame extends JFrame {
         }
 
         setContentPane(root);
-        setSize(1000, 450);
+        setSize(Theme.screenPercent(0.9));
         setLocationRelativeTo(null);
         load("");
     }
@@ -149,7 +96,8 @@ public class ChemicalFrame extends JFrame {
             model.setRowCount(0);
             for (Chemical c : shown) {
                 model.addRow(new Object[]{c.getCode(), c.getName(), Format.qty(c.getQuantity()), c.getUnit(),
-                        c.getHazardType(), c.getStorageGroup(), c.getStorageTemperature(), c.getLocation(),
+                        formatHazards(c.getHazardType()), c.getStorageGroup(), c.getStorageTemperature(),
+                        ChemicalService.canonicalStorageLocation(c.getLocation(), c.getStorageGroup()),
                         Format.qty(c.getMinimumStock()),
                         c.getExpirationDate() == null ? "" : c.getExpirationDate().toString(),
                         c.getStatus()});
@@ -158,6 +106,10 @@ public class ChemicalFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "Database error: " + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private String formatHazards(String hazards) {
+        return hazards == null ? "None" : hazards.replaceAll("\\s*,\\s*", ", ");
     }
 
     private Chemical selected() {
@@ -189,6 +141,28 @@ public class ChemicalFrame extends JFrame {
             load("");
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private static final class StatusRenderer extends DefaultTableCellRenderer {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public java.awt.Component getTableCellRendererComponent(JTable source, Object value,
+                boolean selected, boolean focused, int row, int column) {
+            super.getTableCellRendererComponent(source, value, selected, focused, row, column);
+            setFont(Theme.TABLE);
+            setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+            if (selected) {
+                setForeground(java.awt.Color.WHITE);
+            } else {
+                String status = value == null ? "" : value.toString().toUpperCase();
+                setForeground(status.contains("EXPIRED") ? Theme.DANGER
+                        : status.contains("LOW") || status.contains("EXPIR") ? Theme.WARN
+                        : status.equals("OK") ? Theme.OK : Theme.TEXT);
+            }
+            setBackground(selected ? Theme.PRIMARY : (row % 2 == 0 ? Theme.CARD : new java.awt.Color(0xF9FAFB)));
+            return this;
         }
     }
 }

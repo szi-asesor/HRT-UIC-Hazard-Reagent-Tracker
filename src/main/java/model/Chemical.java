@@ -17,7 +17,7 @@ public class Chemical {
     private String hazardType;          // e.g. "Corrosive,Irritant"
     private String storageGroup;        // Acid, Base, Oxidizer, Flammable, Other
     private String storageTemperature;  // e.g. "15-25°C"
-    private String location;            // e.g. "Cabinet A"
+    private String location;            // fixed storage category such as "Acid Corrosive"
     private double minimumStock;
     private LocalDate expirationDate;   // may be null
 

@@ -14,7 +14,7 @@ import model.Admin;
 import model.ChemicalRequest;
 import service.RequestService;
 
-/** Admin screen: review requests, approve / reject, or change a request to any status. */
+/** Admin screen: review and approve requests, or ask about incompatible chemical pairs. */
 public class RequestManagementFrame extends JFrame {
     private final Admin admin;
     private final RequestService service = new RequestService();
@@ -31,9 +31,9 @@ public class RequestManagementFrame extends JFrame {
             "ALL", ChemicalRequest.PENDING, ChemicalRequest.APPROVED, ChemicalRequest.REJECTED, ChemicalRequest.CANCELLED
     });
     private final JTextArea details = new JTextArea(9, 40);
-    private final JButton approveBtn = new JButton("Approve");
-    private final JButton rejectBtn = new JButton("Reject");
-    private final JButton statusBtn = new JButton("Change Status...");
+    private final RoundedButton approveBtn = new RoundedButton("Approve", RoundedButton.Kind.PRIMARY);
+    private final RoundedButton clarifyBtn = new RoundedButton("Ask Teacher About Safety", RoundedButton.Kind.SECONDARY);
+    private final RoundedButton statusBtn = new RoundedButton("Change Status...", RoundedButton.Kind.SECONDARY);
     private List<ChemicalRequest> requests = new ArrayList<>();
 
     public RequestManagementFrame(Admin admin) {
@@ -41,29 +41,23 @@ public class RequestManagementFrame extends JFrame {
         setTitle("Manage Requests");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-        // Attach sorter and row filter
+        Theme.styleTable(table);
         table.setRowSorter(sorter);
-
-        // Auto-refresh table when the window regains focus
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowGainedFocus(WindowEvent e) {
-                load();
-            }
+        details.setFont(Theme.BODY);
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowGainedFocus(WindowEvent event) { load(); }
         });
-
-        statusFilterCombo.addActionListener(e -> applyFilter());
-
+        statusFilterCombo.addActionListener(event -> applyFilter());
         details.setEditable(false);
         setButtons(null);
 
         table.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, 
+            public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
-                
+
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                
+
                 if (value != null) {
                     String status = value.toString().toUpperCase();
                     switch (status) {
@@ -91,7 +85,7 @@ public class RequestManagementFrame extends JFrame {
                             break;
                     }
                 }
-                
+
                 if (isSelected) {
                     c.setBackground(table.getSelectionBackground());
                     c.setForeground(table.getSelectionForeground());
@@ -106,12 +100,14 @@ public class RequestManagementFrame extends JFrame {
             if (!e.getValueIsAdjusting() && viewRow >= 0) {
                 int modelRow = table.convertRowIndexToModel(viewRow);
                 ChemicalRequest r = requests.get(modelRow);
-                details.setText(r.getDetailsText());
+                List<String> conflicts = service.incompatiblePairs(r);
+                details.setText(r.getDetailsText() + (conflicts.isEmpty() ? ""
+                        : "\nSAFETY CLARIFICATION NEEDED:\n" + String.join("\n", conflicts)));
                 setButtons(r);
             }
         });
         approveBtn.addActionListener(e -> apply(ChemicalRequest.APPROVED));
-        rejectBtn.addActionListener(e -> apply(ChemicalRequest.REJECTED));
+        clarifyBtn.addActionListener(e -> askForClarification());
         statusBtn.addActionListener(e -> chooseStatus());
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -120,7 +116,7 @@ public class RequestManagementFrame extends JFrame {
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttons.add(approveBtn);
-        buttons.add(rejectBtn);
+        buttons.add(clarifyBtn);
         buttons.add(statusBtn);
 
         JPanel bottom = new JPanel(new BorderLayout());
@@ -133,26 +129,27 @@ public class RequestManagementFrame extends JFrame {
         root.add(new JScrollPane(table), BorderLayout.CENTER);
         root.add(bottom, BorderLayout.SOUTH);
         setContentPane(root);
-        setSize(850, 560);
+        setSize(Theme.screenPercent(0.9));
         setLocationRelativeTo(null);
         load();
     }
 
     private void applyFilter() {
         String selected = (String) statusFilterCombo.getSelectedItem();
-        if ("ALL".equals(selected) || selected == null) {
+        if (selected == null || "ALL".equals(selected)) {
             sorter.setRowFilter(null);
         } else {
-            // Column 5 is the Status column
             sorter.setRowFilter(RowFilter.regexFilter("(?i)^" + selected + "$", 5));
         }
     }
 
-    /** Approve / Reject are only useful when the request is not already in that status. */
+    /** Actions are disabled for requests the teacher has cancelled. */
     private void setButtons(ChemicalRequest r) {
-        approveBtn.setEnabled(r != null && !r.getStatus().equals(ChemicalRequest.APPROVED));
-        rejectBtn.setEnabled(r != null && !r.getStatus().equals(ChemicalRequest.REJECTED));
-        statusBtn.setEnabled(r != null);
+        boolean active = r != null && !ChemicalRequest.CANCELLED.equals(r.getStatus());
+        approveBtn.setEnabled(active && !ChemicalRequest.APPROVED.equals(r.getStatus()));
+        clarifyBtn.setEnabled(r != null && ChemicalRequest.PENDING.equals(r.getStatus())
+                && !service.incompatiblePairs(r).isEmpty());
+        statusBtn.setEnabled(active);
     }
 
     private void load() {
@@ -183,10 +180,10 @@ public class RequestManagementFrame extends JFrame {
     private void chooseStatus() {
         ChemicalRequest r = selected();
         if (r == null) return;
-        String[] options = {ChemicalRequest.PENDING, ChemicalRequest.APPROVED,
-                ChemicalRequest.REJECTED, ChemicalRequest.CANCELLED};
+        String[] options = {ChemicalRequest.PENDING, ChemicalRequest.APPROVED, ChemicalRequest.CANCELLED};
+        String initial = List.of(options).contains(r.getStatus()) ? r.getStatus() : ChemicalRequest.PENDING;
         String choice = (String) JOptionPane.showInputDialog(this, "New status for request " + r.getIdText() + ":",
-                "Change Status", JOptionPane.QUESTION_MESSAGE, null, options, r.getStatus());
+                "Change Status", JOptionPane.QUESTION_MESSAGE, null, options, initial);
         if (choice != null) {
             apply(choice);
         }
@@ -198,6 +195,11 @@ public class RequestManagementFrame extends JFrame {
         if (r == null) return;
 
         String old = r.getStatus();
+        if (ChemicalRequest.CANCELLED.equals(old)) {
+            JOptionPane.showMessageDialog(this, "Teacher-cancelled requests are final and cannot be changed.",
+                    "Request is cancelled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         String note = "";
         if (newStatus.equals(ChemicalRequest.APPROVED) && !old.equals(ChemicalRequest.APPROVED)) {
             note += "\n- The chemicals will be RELEASED from inventory.";
@@ -205,7 +207,7 @@ public class RequestManagementFrame extends JFrame {
         if (old.equals(ChemicalRequest.APPROVED) && !newStatus.equals(ChemicalRequest.APPROVED)) {
             note += "\n- The released chemicals will be RETURNED to inventory.";
         }
-        boolean emails = newStatus.equals(ChemicalRequest.APPROVED) || newStatus.equals(ChemicalRequest.REJECTED);
+        boolean emails = newStatus.equals(ChemicalRequest.APPROVED);
         if (emails) {
             note += "\n- The teacher will be emailed.";
         }
@@ -214,14 +216,8 @@ public class RequestManagementFrame extends JFrame {
                 "Confirm", JOptionPane.YES_NO_OPTION);
         if (answer != JOptionPane.YES_OPTION) return;
 
-        String reason = null;
-        if (newStatus.equals(ChemicalRequest.REJECTED)) {
-            reason = JOptionPane.showInputDialog(this, "Reason for rejection:");
-            if (reason == null) return;   // admin pressed Cancel
-        }
-
         try {
-            String emailProblem = service.changeStatus(r.getId(), newStatus, reason, admin.getId());
+            String emailProblem = service.changeStatus(r.getId(), newStatus, admin.getId());
             if (emailProblem == null) {
                 JOptionPane.showMessageDialog(this, "Status changed to " + newStatus + "."
                         + (emails ? " Email sent to the teacher." : ""));
@@ -232,5 +228,27 @@ public class RequestManagementFrame extends JFrame {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Cannot change status", JOptionPane.ERROR_MESSAGE);
         }
         load();
+    }
+
+    private void askForClarification() {
+        ChemicalRequest request = selected();
+        if (request == null) return;
+        List<String> pairs = service.incompatiblePairs(request);
+        if (pairs.isEmpty()) return;
+        int answer = JOptionPane.showConfirmDialog(this,
+                "Email the teacher to explain why these incompatible chemicals were requested together?\n\n"
+                        + String.join("\n", pairs) + "\n\nThe request will remain PENDING.",
+                "Ask for Safety Clarification", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        try {
+            String problem = service.askForSafetyClarification(request.getId());
+            JOptionPane.showMessageDialog(this, problem == null
+                    ? "Safety clarification email sent. The request remains PENDING." : problem,
+                    problem == null ? "Email sent" : "Email not sent",
+                    problem == null ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+        } catch (Exception exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(), "Cannot send clarification",
+                    JOptionPane.ERROR_MESSAGE);
+        }
     }
 }

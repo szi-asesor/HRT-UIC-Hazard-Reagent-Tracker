@@ -1,122 +1,74 @@
 package gui;
 
-import java.awt.*;
-import java.util.ArrayList;
-import java.util.List;
-import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import javax.swing.BorderFactory;
+import javax.swing.JFrame;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.table.DefaultTableModel;
 import service.ChemicalService;
 
-/**
- * Admin screen to view, add, EDIT and DELETE "incompatible group" rules (e.g. Acid + Base).
- * Select a rule in the list: its two groups appear in the boxes so you can change them and press Update.
- */
+/** Read-only view of the lab's fixed chemical segregation rules. */
 public class CompatibilityDialog extends JDialog {
-    private static final String[] GROUPS = {"Acid", "Base", "Oxidizer", "Flammable", "Other"};
-
-    private final ChemicalService service;
-    private final DefaultListModel<String> listModel = new DefaultListModel<>();
-    private final JList<String> list = new JList<>(listModel);
-    private final JComboBox<String> groupA = new JComboBox<>(GROUPS);
-    private final JComboBox<String> groupB = new JComboBox<>(GROUPS);
-    private List<String[]> rules = new ArrayList<>();
-
     public CompatibilityDialog(JFrame owner, ChemicalService service) {
-        super(owner, "Incompatible Storage Groups", true);
-        this.service = service;
+        super(owner, "Fixed Storage Safety Rules", true);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.addListSelectionListener(e -> {
-            int index = list.getSelectedIndex();
-            if (!e.getValueIsAdjusting() && index >= 0) {
-                groupA.setSelectedItem(rules.get(index)[1]);
-                groupB.setSelectedItem(rules.get(index)[2]);
-            }
-        });
+        JTextArea explanation = new JTextArea(
+                "These storage segregation rules are fixed and cannot be edited in the tracker. "
+                + "DOLE Department Order No. 136-14, Section 6(4), requires chemicals to be properly "
+                + "segregated according to GHS physical-hazard criteria and the storage requirements "
+                + "in each chemical's Safety Data Sheet (SDS). The specific pairs below are the lab's "
+                + "operational rules; consult the SDS for the controlling storage instructions.\n\n"
+                + "Official text: https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/10/68235");
+        explanation.setColumns(60);
+        explanation.setRows(5);
+        explanation.setFont(Theme.BODY);
+        explanation.setForeground(Theme.TEXT);
+        explanation.setLineWrap(true);
+        explanation.setWrapStyleWord(true);
+        explanation.setEditable(false);
+        explanation.setOpaque(false);
+        explanation.setBorder(BorderFactory.createEmptyBorder(4, 4, 12, 4));
 
-        JButton addBtn = new JButton("Add Rule");
-        JButton updateBtn = new JButton("Update Selected");
-        JButton deleteBtn = new JButton("Delete Selected");
-        addBtn.addActionListener(e -> addRule());
-        updateBtn.addActionListener(e -> updateRule());
-        deleteBtn.addActionListener(e -> deleteRule());
+        DefaultTableModel model = new DefaultTableModel(new Object[] {"Storage class", "Keep separate from"}, 0) {
+            @Override public boolean isCellEditable(int row, int column) { return false; }
+        };
+        for (String[] pair : service.getRules()) {
+            model.addRow(new Object[] {label(pair[0]), label(pair[1])});
+        }
+        JTable table = new JTable(model);
+        Theme.styleTable(table);
+        table.setPreferredScrollableViewportSize(new Dimension(620, 190));
 
-        JPanel groups = new JPanel();
-        groups.add(groupA);
-        groups.add(new JLabel("+"));
-        groups.add(groupB);
-        JPanel buttons = new JPanel();
-        buttons.add(addBtn);
-        buttons.add(updateBtn);
-        buttons.add(deleteBtn);
-        JPanel bottom = new JPanel(new GridLayout(2, 1));
-        bottom.add(groups);
-        bottom.add(buttons);
+        RoundedButton close = new RoundedButton("Close", RoundedButton.Kind.SECONDARY);
+        close.addActionListener(event -> dispose());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actions.add(close);
 
         JPanel root = new JPanel(new BorderLayout(8, 8));
-        root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        root.add(new JLabel("These groups must NOT be stored together:"), BorderLayout.NORTH);
-        root.add(new JScrollPane(list), BorderLayout.CENTER);
-        root.add(bottom, BorderLayout.SOUTH);
+        root.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        root.add(explanation, BorderLayout.NORTH);
+        root.add(new JScrollPane(table), BorderLayout.CENTER);
+        root.add(actions, BorderLayout.SOUTH);
         setContentPane(root);
-        setSize(520, 380);
+        pack();
         setLocationRelativeTo(owner);
-        load();
     }
 
-    private void load() {
-        try {
-            rules = service.getRules();
-            listModel.clear();
-            for (String[] r : rules) {
-                listModel.addElement(r[1] + " + " + r[2] + "  →  Incompatible");
-            }
-        } catch (Exception ex) {
-            showError(ex, "Error");
-        }
-    }
-
-    private void addRule() {
-        try {
-            service.addRule((String) groupA.getSelectedItem(), (String) groupB.getSelectedItem());
-            load();
-        } catch (Exception ex) {
-            showError(ex, "Cannot add rule");
-        }
-    }
-
-    private void updateRule() {
-        int index = list.getSelectedIndex();
-        if (index < 0) {
-            JOptionPane.showMessageDialog(this, "Select a rule first, then change the groups.");
-            return;
-        }
-        try {
-            service.updateRule(Integer.parseInt(rules.get(index)[0]),
-                    (String) groupA.getSelectedItem(), (String) groupB.getSelectedItem());
-            load();
-        } catch (Exception ex) {
-            showError(ex, "Cannot update rule");
-        }
-    }
-
-    private void deleteRule() {
-        int index = list.getSelectedIndex();
-        if (index < 0) {
-            JOptionPane.showMessageDialog(this, "Select a rule first.");
-            return;
-        }
-        int answer = JOptionPane.showConfirmDialog(this, "Delete the rule '" + listModel.get(index) + "'?",
-                "Confirm", JOptionPane.YES_NO_OPTION);
-        if (answer != JOptionPane.YES_OPTION) return;
-        try {
-            service.deleteRule(Integer.parseInt(rules.get(index)[0]));
-            load();
-        } catch (Exception ex) {
-            showError(ex, "Error");
-        }
-    }
-
-    private void showError(Exception ex, String title) {
-        JOptionPane.showMessageDialog(this, ex.getMessage(), title, JOptionPane.ERROR_MESSAGE);
+    private String label(String group) {
+        return switch (group) {
+            case "Acid" -> "Acid Corrosive";
+            case "Base" -> "Base Corrosive";
+            case "Cyanide" -> "Cyanide (hazard)";
+            case "Organic Material" -> "Organic Material (hazard)";
+            default -> group;
+        };
     }
 }

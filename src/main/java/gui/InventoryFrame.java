@@ -35,20 +35,16 @@ public class InventoryFrame extends JFrame {
         setTitle("Inventory");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-        // Enable table sorting and prevent column reordering
+        Theme.styleInput(chemicalBox);
+        Theme.styleInput(amountField);
+        Theme.styleTable(table);
         table.setAutoCreateRowSorter(true);
-        table.getTableHeader().setReorderingAllowed(false);
-
-        // Auto-refresh when window regains focus
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowGainedFocus(WindowEvent e) {
-                refresh();
-            }
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowGainedFocus(WindowEvent event) { refresh(); }
         });
 
-        JButton addBtn = new JButton("Add Stock");
-        JButton releaseBtn = new JButton("Release Stock");
+        RoundedButton addBtn = new RoundedButton("Add Stock", RoundedButton.Kind.PRIMARY);
+        RoundedButton releaseBtn = new RoundedButton("Release Stock", RoundedButton.Kind.DANGER);
         addBtn.addActionListener(e -> change(true));
         releaseBtn.addActionListener(e -> change(false));
 
@@ -64,7 +60,7 @@ public class InventoryFrame extends JFrame {
         root.add(top, BorderLayout.NORTH);
         root.add(new JScrollPane(table), BorderLayout.CENTER);
         setContentPane(root);
-        setSize(800, 450);
+        setSize(Theme.screenPercent(0.9));
         setLocationRelativeTo(null);
         refresh();
     }

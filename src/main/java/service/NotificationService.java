@@ -9,5 +9,6 @@ import model.ChemicalRequest;
 public interface NotificationService {
     void sendApproved(ChemicalRequest request) throws Exception;
 
-    void sendRejected(ChemicalRequest request) throws Exception;
+    void sendCompatibilityClarification(ChemicalRequest request, java.util.List<String> incompatiblePairs)
+            throws Exception;
 }

@@ -4,12 +4,30 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import model.Admin;
 import model.Teacher;
 import model.User;
 
 /** Reads users and creates teacher accounts in the database. */
 public class UserDAO {
+
+    /** Returns email addresses beginning with the typed prefix, limited for the login dropdown. */
+    public List<String> findEmailSuggestions(String prefix) throws SQLException {
+        String sql = "SELECT email FROM users WHERE LOWER(LEFT(email, CHAR_LENGTH(?))) = LOWER(?) "
+                + "ORDER BY email LIMIT 8";
+        List<String> emails = new ArrayList<>();
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, prefix);
+            ps.setString(2, prefix);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) emails.add(rs.getString("email"));
+            }
+        }
+        return emails;
+    }
 
     public User findByEmail(String email) throws SQLException {
         String sql = "SELECT * FROM users WHERE email = ?";

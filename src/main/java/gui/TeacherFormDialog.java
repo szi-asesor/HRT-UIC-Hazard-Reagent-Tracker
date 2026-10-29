@@ -1,6 +1,7 @@
 package gui;
 
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.sql.SQLException;
 import javax.swing.*;
@@ -18,6 +19,10 @@ public class TeacherFormDialog extends JDialog {
         super(owner, "Add Teacher", true);
         this.authenticationService = authenticationService;
 
+        Theme.styleInput(nameField);
+        Theme.styleInput(emailField);
+        Theme.styleInput(passwordField);
+
         JPanel form = new JPanel(new GridLayout(3, 2, 6, 6));
         form.add(new JLabel("Name"));
         form.add(nameField);
@@ -26,13 +31,13 @@ public class TeacherFormDialog extends JDialog {
         form.add(new JLabel("Password"));
         form.add(passwordField);
 
-        JButton saveButton = new JButton("Save");
-        JButton cancelButton = new JButton("Cancel");
+        RoundedButton saveButton = new RoundedButton("Save", RoundedButton.Kind.PRIMARY);
+        RoundedButton cancelButton = new RoundedButton("Cancel", RoundedButton.Kind.DANGER);
         saveButton.addActionListener(e -> save());
         cancelButton.addActionListener(e -> dispose());
-        JPanel buttons = new JPanel();
-        buttons.add(saveButton);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttons.add(cancelButton);
+        buttons.add(saveButton);
 
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));

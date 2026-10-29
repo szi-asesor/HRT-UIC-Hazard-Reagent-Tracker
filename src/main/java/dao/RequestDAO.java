@@ -165,14 +165,15 @@ public class RequestDAO {
     }
 
     private void loadItems(Connection con, ChemicalRequest r) throws SQLException {
-        String sql = "SELECT ri.chemical_id, ri.quantity, c.name, c.unit FROM request_items ri "
+        String sql = "SELECT ri.chemical_id, ri.quantity, c.name, c.unit, c.storage_group, c.hazard_type FROM request_items ri "
                 + "JOIN chemicals c ON ri.chemical_id = c.id WHERE ri.request_id = ?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, r.getId());
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     r.addItem(new RequestItem(rs.getInt("chemical_id"), rs.getString("name"),
-                            rs.getString("unit"), rs.getDouble("quantity")));
+                            rs.getString("unit"), rs.getDouble("quantity"), rs.getString("storage_group"),
+                            rs.getString("hazard_type")));
                 }
             }
         }

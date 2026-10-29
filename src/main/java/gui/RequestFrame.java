@@ -47,7 +47,7 @@ public class RequestFrame extends JFrame {
         setTitle(existing == null ? "New Chemical Request" : "Edit Request " + existing.getIdText());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
-<<<<<<< HEAD
+
         Theme.styleInput(classField);
         Theme.styleInput(experimentField);
         Theme.styleInput(chemicalBox);
@@ -56,9 +56,8 @@ public class RequestFrame extends JFrame {
         selectedChemicalLabel.setForeground(Theme.MUTED);
         chemicalBox.addActionListener(event -> updateSelectedChemical());
         Theme.styleTable(table);
-=======
+        
         // Enable automatic table sorting
->>>>>>> 8cd8bfd62cc30e0d9088421103e4998e28d461c3
         table.setAutoCreateRowSorter(true);
 
         JPanel info = new JPanel(new GridLayout(2, 2, 6, 6));
